@@ -68,18 +68,22 @@ body { background: var(--night); color: var(--ink); font-family: var(--font-body
 /* Status chips */
 #hud {
   position: absolute; top: 0; left: 0; right: 0;
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;
   padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 0;
   pointer-events: none;
 }
 #game:not(.playing) #hud { visibility: hidden; }
 .chip {
-  display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 11px;
+  display: inline-flex; align-items: center; gap: 4px; height: 34px; padding: 0 9px;
   border: 0; border-radius: 999px; background: var(--sheet); color: var(--ink);
   box-shadow: 0 2px 8px var(--shade);
-  font: 700 15px/1 var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap;
+  font: 700 14px/1 var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .chip .k { font-size: 16px; }
+@media (max-width: 370px) {
+  #hud { padding-inline: 10px; }
+  #clock .k { display: none; }
+}
 #clock.late { color: var(--call); }
 #hands[data-clean="no"] { color: var(--warn); }
 #mute { pointer-events: auto; cursor: pointer; width: 34px; padding: 0; justify-content: center; touch-action: manipulation; }
