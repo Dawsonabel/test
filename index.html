@@ -1,0 +1,1192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CNA Shift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Fredoka:wght@500;600&display=swap">
+<style>
+/* Layout: full-bleed 3D care-unit diorama; status chips pinned to the top edge; menus are clipboard sheets over the ward */
+:root {
+  --scene: #c6dbe0;
+  --scene-hi: #eaf3f3;
+  --sheet: #fbfdfc;
+  --sheet-2: #e9f1ef;
+  --ink: #15323b;
+  --ink-soft: #4c6870;
+  --line: rgba(21, 50, 59, 0.15);
+  --scrubs: #1b7c8a;
+  --scrubs-deep: #12596a;
+  --scrubs-ink: #ffffff;
+  --call: #c8372d;
+  --warn: #a86400;
+  --ok: #1d7f4e;
+  --clip: #8d9ca5;
+  --scrim: rgba(15, 36, 43, 0.34);
+  --shade: rgba(16, 40, 48, 0.22);
+  --stick-ring: rgba(21, 50, 59, 0.32);
+  --stick-fill: rgba(255, 255, 255, 0.28);
+  --font-display: "Fredoka", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --scene: #0c191e; --scene-hi: #1c323a; --sheet: #15272e; --sheet-2: #1e363e;
+    --ink: #e3f0ef; --ink-soft: #9db8bd; --line: rgba(227, 240, 239, 0.16);
+    --scrubs: #3cb4c3; --scrubs-deep: #23808c; --scrubs-ink: #062228;
+    --call: #ff7064; --warn: #ffb547; --ok: #55d08f; --clip: #5d6f78;
+    --scrim: rgba(3, 10, 13, 0.55); --shade: rgba(0, 0, 0, 0.45);
+    --stick-ring: rgba(227, 240, 239, 0.38); --stick-fill: rgba(21, 39, 46, 0.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --scene: #0c191e; --scene-hi: #1c323a; --sheet: #15272e; --sheet-2: #1e363e;
+  --ink: #e3f0ef; --ink-soft: #9db8bd; --line: rgba(227, 240, 239, 0.16);
+  --scrubs: #3cb4c3; --scrubs-deep: #23808c; --scrubs-ink: #062228;
+  --call: #ff7064; --warn: #ffb547; --ok: #55d08f; --clip: #5d6f78;
+  --scrim: rgba(3, 10, 13, 0.55); --shade: rgba(0, 0, 0, 0.45);
+  --stick-ring: rgba(227, 240, 239, 0.38); --stick-fill: rgba(21, 39, 46, 0.35);
+  color-scheme: dark;
+}
+
+html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; }
+body { background: var(--scene); color: var(--ink); font-family: var(--font-body); }
+[hidden] { display: none !important; }
+
+#game {
+  position: fixed; inset: 0; overflow: hidden;
+  background: radial-gradient(120% 80% at 50% 42%, var(--scene-hi), var(--scene));
+  touch-action: none; user-select: none; -webkit-user-select: none;
+  -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+
+/* Status chips */
+#hud {
+  position: absolute; top: 0; left: 0; right: 0;
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 6px;
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 0;
+  pointer-events: none;
+}
+#game:not(.playing) #hud { visibility: hidden; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 11px;
+  border: 0; border-radius: 999px; background: var(--sheet); color: var(--ink);
+  box-shadow: 0 2px 8px var(--shade);
+  font: 700 15px/1 var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.chip .k { font-size: 16px; }
+#clock.late { color: var(--call); }
+#hands[data-clean="no"] { color: var(--warn); }
+#mute { pointer-events: auto; cursor: pointer; width: 34px; padding: 0; justify-content: center; touch-action: manipulation; }
+#mute:focus-visible, .btn:focus-visible { outline: 3px solid var(--scrubs); outline-offset: 3px; }
+
+#toast {
+  position: absolute; left: 50%; top: 56px; transform: translateX(-50%);
+  width: max-content; max-width: min(calc(100vw - 32px), 420px);
+  padding: 8px 14px; border-radius: 12px; background: var(--ink); color: var(--sheet);
+  font: 700 14px/1.3 var(--font-body); text-align: center; box-shadow: 0 4px 14px var(--shade);
+  pointer-events: none;
+}
+#toast.show { animation: toast-in 0.22s ease-out; }
+#hint {
+  position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 28px); transform: translateX(-50%);
+  padding: 11px 18px; border-radius: 999px; background: var(--ink); color: var(--sheet);
+  font: 700 15px/1 var(--font-body); white-space: nowrap; pointer-events: none;
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+/* Floating joystick */
+#stick {
+  position: absolute; left: -56px; top: -56px; width: 112px; height: 112px; border-radius: 50%;
+  border: 2px solid var(--stick-ring); background: var(--stick-fill); pointer-events: none;
+}
+#knob {
+  position: absolute; left: 29px; top: 29px; width: 50px; height: 50px; border-radius: 50%;
+  background: var(--sheet); box-shadow: 0 3px 10px var(--shade);
+}
+
+/* Labels that follow the 3D scene */
+.tag, .bubble, .carry { position: absolute; left: 0; top: 0; will-change: transform; }
+.tag {
+  padding: 4px 9px; border-radius: 9px; background: var(--sheet); color: var(--ink);
+  font: 700 12px/1.2 var(--font-body); white-space: nowrap; box-shadow: 0 2px 6px var(--shade);
+}
+.tag.nudge { background: var(--scrubs); color: var(--scrubs-ink); animation: nudge 0.9s ease-in-out infinite; }
+.carry {
+  padding: 3px 7px; border-radius: 10px; background: var(--sheet);
+  font-size: 19px; line-height: 1.15; box-shadow: 0 2px 6px var(--shade);
+}
+.bubble {
+  --lvl: var(--ok);
+  display: grid; justify-items: center; gap: 3px; padding: 5px 9px 7px; border-radius: 14px;
+  background: var(--sheet); color: var(--ink); border: 2px solid var(--lvl);
+  box-shadow: 0 4px 12px var(--shade); margin-top: -8px;
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; bottom: -7px; width: 10px; height: 10px;
+  background: var(--sheet); border-right: 2px solid var(--lvl); border-bottom: 2px solid var(--lvl);
+  transform: translateX(-50%) rotate(45deg);
+}
+.bubble .ico { font-size: 22px; line-height: 1.1; }
+.bubble .who { font: 700 10px/1 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.bubble .bar { width: 42px; height: 5px; border-radius: 3px; background: var(--sheet-2); overflow: hidden; }
+.bubble .bar i { display: block; width: 100%; height: 100%; background: var(--lvl); transform-origin: left center; }
+.bubble[data-level="warn"] { --lvl: var(--warn); }
+.bubble[data-level="late"] { --lvl: var(--call); }
+.bubble[data-level="late"] .ico { animation: wiggle 0.4s ease-in-out infinite; }
+.bubble[data-level="help"] { --lvl: var(--scrubs); }
+.bubble.upset { --lvl: var(--call); }
+.bubble.upset .bar { display: none; }
+
+.pop {
+  position: absolute; transform: translate(-50%, -100%);
+  font: 600 24px/1 var(--font-display); color: var(--ok); white-space: nowrap;
+  text-shadow: 0 0 2px var(--sheet), 0 0 6px var(--sheet), 0 2px 0 var(--sheet);
+  animation: rise 1.3s ease-out forwards;
+}
+.pop.bad { color: var(--call); }
+.pop.small { font: 700 14px/1 var(--font-body); color: var(--ink); }
+.pop.say {
+  font: 700 13px/1.25 var(--font-body); color: var(--ink); text-shadow: none;
+  background: var(--sheet); padding: 6px 10px; border-radius: 12px; box-shadow: 0 3px 10px var(--shade);
+  animation-duration: 2s;
+}
+
+/* Clipboard sheets */
+.overlay {
+  position: fixed; inset: 0; display: flex; overflow-y: auto;
+  padding: calc(env(safe-area-inset-top, 0px) + 24px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  background: var(--scrim);
+}
+.sheet {
+  position: relative; margin: auto; width: min(100%, 400px); box-sizing: border-box;
+  display: grid; gap: 14px; padding: 30px 22px 22px; border-radius: 18px;
+  background: var(--sheet); color: var(--ink); box-shadow: 0 18px 40px var(--shade);
+}
+.clip {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  width: 96px; height: 24px; border-radius: 8px; background: var(--clip);
+  box-shadow: inset 0 -4px 0 var(--line);
+}
+.eyebrow {
+  margin: 0; font: 700 11px/1.3 var(--font-body); letter-spacing: 0.14em; text-transform: uppercase; color: var(--scrubs);
+}
+.sheet h1, .sheet h2 { margin: 0; font-family: var(--font-display); font-weight: 600; line-height: 1; text-wrap: balance; }
+.sheet h1 { font-size: 46px; letter-spacing: -0.01em; }
+.sheet h2 { font-size: 30px; }
+.lede { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink-soft); }
+.roster { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.roster li {
+  display: inline-flex; gap: 5px; align-items: baseline; padding: 4px 9px;
+  border: 1px solid var(--line); border-radius: 8px; font-size: 13px;
+}
+.roster b { color: var(--scrubs); font-variant-numeric: tabular-nums; }
+.howto { list-style: none; margin: 0; padding: 12px; display: grid; gap: 10px; background: var(--sheet-2); border-radius: 12px; }
+.howto li { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; font-size: 14px; line-height: 1.35; }
+.howto .ico { font-size: 18px; text-align: center; letter-spacing: -1px; }
+.btn {
+  width: 100%; padding: 16px; border: 0; border-radius: 14px; cursor: pointer;
+  background: var(--scrubs); color: var(--scrubs-ink); box-shadow: 0 4px 0 var(--scrubs-deep);
+  font: 600 21px/1 var(--font-display); touch-action: manipulation;
+}
+.btn:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--scrubs-deep); }
+.btn:disabled { opacity: 0.65; cursor: progress; }
+.best { margin: 0; text-align: center; font-size: 13px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.stars { margin: 0; font-size: 34px; line-height: 1; letter-spacing: 6px; color: var(--warn); }
+.stars .off { color: var(--line); }
+.stats { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stats div { padding: 10px; border-radius: 12px; background: var(--sheet-2); }
+.stats dt { font: 700 11px/1.2 var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.stats dd { margin: 4px 0 0; font: 600 28px/1 var(--font-display); font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.tip { display: grid; gap: 6px; padding: 12px 14px; border-radius: 12px; background: var(--sheet-2); }
+.tip p:last-child { margin: 0; font-size: 14px; line-height: 1.45; }
+
+@media (max-height: 740px) {
+  .sheet { gap: 10px; padding: 24px 18px 18px; }
+  .sheet h1 { font-size: 36px; }
+  .lede, .howto li { font-size: 13px; }
+  .howto { gap: 7px; padding: 10px; }
+  .btn { padding: 13px; }
+}
+@media (max-height: 600px) {
+  .roster { display: none; }
+}
+@keyframes rise {
+  0% { opacity: 0; transform: translate(-50%, -70%) scale(0.85); }
+  15% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-100% - 46px)); }
+}
+@keyframes fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes toast-in { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
+@keyframes bob { 50% { translate: 0 -5px; } }
+@keyframes nudge { 50% { scale: 1.12; } }
+@keyframes wiggle { 25% { rotate: -12deg; } 75% { rotate: 12deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .pop { animation-name: fade; }
+  #hint, .tag.nudge, #toast.show, .bubble[data-level="late"] .ico { animation: none; }
+}
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="scene" aria-label="3D view of the care unit"></canvas>
+  <div id="labels"></div>
+  <div id="stick" hidden><div id="knob"></div></div>
+  <div id="hud">
+    <div class="chip" id="clock"><span class="k" id="clock-ico">🕖</span><span id="clock-time">7:00 AM</span></div>
+    <div class="chip"><span class="k">⭐</span><span id="score">0</span></div>
+    <div class="chip" id="hands" data-clean="yes"><span class="k">🧴</span><span id="hands-text">Clean</span></div>
+    <button class="chip" id="mute" type="button" aria-label="Mute sound">🔊</button>
+  </div>
+  <div id="toast" role="status" hidden></div>
+  <div id="hint" hidden></div>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="sheet">
+    <div class="clip" aria-hidden="true"></div>
+    <p class="eyebrow">Assignment sheet · Hall B · 7a–3p</p>
+    <h1>CNA Shift</h1>
+    <p class="lede">You're the CNA on Hall B today. Answer call lights and keep your six residents comfortable until 3 PM.</p>
+    <ul class="roster" aria-label="Your residents">
+      <li><b>101</b> Rosa</li><li><b>102</b> Walt</li><li><b>103</b> June</li><li><b>104</b> Henry</li><li><b>105</b> Mae</li><li><b>106</b> Otis</li>
+    </ul>
+    <ul class="howto">
+      <li><span class="ico">👆</span><span>Drag anywhere to walk.</span></li>
+      <li><span class="ico">🥤🍲🧺</span><span>Walk into a cart to grab what a resident asked for, then bring it to their bed.</span></li>
+      <li><span class="ico">🔄🩺</span><span>Turning and vitals need no supplies. Stay at the bedside until the bar fills.</span></li>
+      <li><span class="ico">🧴</span><span>Step on the sanitizer ring between residents for +5.</span></li>
+    </ul>
+    <button id="start" class="btn" type="button" disabled>Loading…</button>
+    <p class="best" id="menu-best" hidden></p>
+  </div>
+</div>
+
+<div id="report" class="overlay" hidden>
+  <div class="sheet">
+    <div class="clip" aria-hidden="true"></div>
+    <p class="eyebrow">Shift report · 3:00 PM</p>
+    <h2 id="r-title">Solid shift!</h2>
+    <p class="stars" id="r-stars"></p>
+    <dl class="stats">
+      <div><dt>Score</dt><dd id="r-score">0</dd></div>
+      <div><dt>Helped</dt><dd id="r-helped">0</dd></div>
+      <div><dt>Missed</dt><dd id="r-missed">0</dd></div>
+    </dl>
+    <p class="note" id="r-hands"></p>
+    <div class="tip"><p class="eyebrow">From the floor</p><p id="r-tip"></p></div>
+    <button id="again" class="btn" type="button">Clock in again</button>
+    <p class="best" id="r-best"></p>
+  </div>
+</div>
+
+<script>
+  setTimeout(function () {
+    var start = document.getElementById("start");
+    if (start && start.disabled) start.textContent = "Still loading the 3D engine. Check your connection.";
+  }, 15000);
+</script>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js";
+
+const $ = (id) => document.getElementById(id);
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------- Tuning ----------
+const SHIFT_SECONDS = 120; // a 7 AM to 3 PM shift, compressed
+const SPEED = 5; // walking speed in world units per second
+const R = 0.36; // the CNA's collision radius
+const BOUNDS = { minX: -5.05, maxX: 5.05, minZ: -9.15, maxZ: 8.9 };
+const SANITIZER = new THREE.Vector3(0, 0, -0.6);
+const BEST_KEY = "cna-shift-best";
+const MUTE_KEY = "cna-shift-muted";
+
+const ITEMS = {
+  water: { icon: "🥤", name: "Water", cart: "Water" },
+  meal: { icon: "🍲", name: "Meal tray", cart: "Meals" },
+  linens: { icon: "🧺", name: "Fresh linens", cart: "Linens" },
+};
+const TASKS = {
+  water: { icon: "🥤", item: "water", time: 0.4, ask: "is thirsty" },
+  meal: { icon: "🍲", item: "meal", time: 0.4, ask: "is hungry" },
+  linens: { icon: "🧺", item: "linens", time: 0.8, ask: "needs fresh linens" },
+  turn: { icon: "🔄", item: null, time: 2.0, ask: "needs help turning" },
+  vitals: { icon: "🩺", item: null, time: 2.4, ask: "is due for vitals" },
+};
+const RESIDENTS = [
+  { room: 101, name: "Rosa", side: -1, z: -4.6, blanket: 0xf2a7b5, hair: 0xeeeeee, skin: 0xc68e63 },
+  { room: 102, name: "Walt", side: 1, z: -4.6, blanket: 0x8fb8e8, hair: 0xd9d9d9, skin: 0xf0c8a8 },
+  { room: 103, name: "June", side: -1, z: -0.6, blanket: 0xf4d06f, hair: 0xc9c3bd, skin: 0x8d5a3b },
+  { room: 104, name: "Henry", side: 1, z: -0.6, blanket: 0x9fd6a8, hair: 0xf5f5f5, skin: 0xe2b48f },
+  { room: 105, name: "Mae", side: -1, z: 3.4, blanket: 0xc7b4ec, hair: 0xb3aca5, skin: 0xf3d2bb },
+  { room: 106, name: "Otis", side: 1, z: 3.4, blanket: 0xf6b98a, hair: 0x8e8a86, skin: 0x5c3a28 },
+];
+const THANKS = ["Thank you, dear!", "You're an angel.", "Much better, thanks!", "Bless you, honey.", "Ahh, that's nice.", "You're the best."];
+const UPSET = ["Hello? Anybody?", "I rang ages ago!", "Nobody came…"];
+const TIPS = [
+  "Repositioning bed-bound residents at least every 2 hours helps prevent pressure injuries.",
+  "Cleaning your hands before and after every resident contact is the simplest way to stop infections from spreading.",
+  "Answering call lights quickly helps prevent falls, since residents may try to get up on their own.",
+  "Offering fluids often helps prevent dehydration, a common risk for older adults.",
+  "Tell residents what you're about to do before you do it. Dignity and trust go together.",
+  "Report changes in vital signs to the nurse right away, even small ones.",
+];
+const CLOCKS = ["🕛", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚"];
+
+// ---------- Renderer, camera, light ----------
+const canvas = $("scene");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 1, 200);
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9a8f7a, 1.5));
+const sun = new THREE.DirectionalLight(0xfff3e2, 2.3);
+sun.position.set(-5, 16, 8);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 1, far: 45 });
+sun.shadow.camera.updateProjectionMatrix();
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.03;
+scene.add(sun);
+
+const mats = new Map();
+function lambert(color) {
+  if (!mats.has(color)) mats.set(color, new THREE.MeshLambertMaterial({ color }));
+  return mats.get(color);
+}
+function add(geo, color, x, y, z, parent = scene, cast = true) {
+  const m = new THREE.Mesh(geo, typeof color === "number" ? lambert(color) : color);
+  m.position.set(x, y, z);
+  m.castShadow = cast;
+  m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+const ball = (r, ws = 16, hs = 12) => new THREE.SphereGeometry(r, ws, hs);
+const dome = (r) => new THREE.SphereGeometry(r, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+const tube = (rt, rb, h, s = 16) => new THREE.CylinderGeometry(rt, rb, h, s);
+
+// Axis-aligned footprints on the floor (x/z) that the CNA can't walk through.
+const colliders = [];
+function solid(obj) {
+  obj.updateWorldMatrix(true, false);
+  const b = new THREE.Box3().setFromObject(obj);
+  const c = { minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z };
+  colliders.push(c);
+  return c;
+}
+function distToBox(p, b) {
+  const dx = Math.max(b.minX - p.x, 0, p.x - b.maxX);
+  const dz = Math.max(b.minZ - p.z, 0, p.z - b.maxZ);
+  return Math.hypot(dx, dz);
+}
+
+// ---------- The ward: floor, walls, privacy curtains ----------
+function floorTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d");
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 4; j++) {
+      g.fillStyle = (i + j) % 2 ? "#e4e8e2" : "#d8e0db";
+      g.fillRect(i * 64, j * 64, 64, 64);
+    }
+  }
+  for (let s = 0; s < 500; s++) {
+    g.fillStyle = `rgba(70, 95, 95, ${Math.random() * 0.09})`;
+    g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+  }
+  g.strokeStyle = "rgba(70, 95, 95, 0.22)";
+  g.lineWidth = 2;
+  g.beginPath();
+  for (let k = 0; k <= 256; k += 64) {
+    g.moveTo(k, 0); g.lineTo(k, 256);
+    g.moveTo(0, k); g.lineTo(256, k);
+  }
+  g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  t.repeat.set(10.6 / 4, 18.6 / 4);
+  return t;
+}
+const slabEdge = lambert(0x8fa6ab);
+const floor = new THREE.Mesh(box(10.6, 0.4, 18.6), [
+  slabEdge, slabEdge, new THREE.MeshLambertMaterial({ map: floorTexture() }), slabEdge, slabEdge, slabEdge,
+]);
+floor.position.set(0, -0.2, -0.1);
+floor.receiveShadow = true;
+scene.add(floor);
+
+const WALL_H = 1.7;
+function wall(w, d, x, z) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  scene.add(g);
+  add(box(w, 0.85, d), 0x96c3b9, 0, 0.425, 0, g);
+  add(box(w, WALL_H - 0.85, d), 0xe8f0ec, 0, 0.85 + (WALL_H - 0.85) / 2, 0, g);
+  add(box(w + 0.03, 0.07, d + 0.03), 0x5c8a82, 0, 0.86, 0, g);
+  return g;
+}
+wall(10.6, 0.25, 0, -9.275);
+wall(0.25, 18.6, -5.175, -0.1);
+const rightWall = wall(0.25, 18.6, 5.175, -0.1);
+
+for (const side of [-1, 1]) {
+  for (const z of [-6.6, -2.6, 1.4, 5.4]) {
+    solid(add(box(2.3, 1.42, 0.06), 0xb9d7df, side * 3.9, 0.85, z));
+    add(box(2.3, 0.04, 0.09), 0x8e9ea6, side * 3.9, 1.6, z, scene, false);
+  }
+}
+
+// Room-number decals on the floor at the foot of each bed.
+const plates = [];
+function drawPlate({ canvas: c, tex, def }) {
+  const g = c.getContext("2d");
+  g.clearRect(0, 0, 256, 128);
+  g.fillStyle = "rgba(27, 124, 138, 0.14)";
+  g.strokeStyle = "rgba(27, 124, 138, 0.6)";
+  g.lineWidth = 5;
+  g.beginPath();
+  if (g.roundRect) g.roundRect(8, 8, 240, 112, 24); else g.rect(8, 8, 240, 112);
+  g.fill();
+  g.stroke();
+  g.fillStyle = "#17606b";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = '700 56px "Atkinson Hyperlegible", system-ui, sans-serif';
+  g.fillText(String(def.room), 128, 52);
+  g.font = '700 26px "Atkinson Hyperlegible", system-ui, sans-serif';
+  g.fillText(def.name.toUpperCase(), 128, 97);
+  tex.needsUpdate = true;
+}
+function plate(def) {
+  const c = document.createElement("canvas");
+  c.width = 256;
+  c.height = 128;
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.55), new THREE.MeshLambertMaterial({ map: tex, transparent: true, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.receiveShadow = true;
+  const holder = new THREE.Group();
+  holder.position.set(def.side * 1.83, 0.012, def.z);
+  holder.add(m);
+  scene.add(holder);
+  const p = { canvas: c, tex, def, holder };
+  drawPlate(p);
+  plates.push(p);
+}
+
+// ---------- HTML labels that follow the scene ----------
+const labels = $("labels");
+const v = new THREE.Vector3();
+let W = 1, H = 1;
+function toScreen(pos) {
+  v.copy(pos).project(camera);
+  return [(v.x * 0.5 + 0.5) * W, (-v.y * 0.5 + 0.5) * H];
+}
+function place(el, pos) {
+  const [x, y] = toScreen(pos);
+  el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+}
+function label(text, cls) {
+  const el = document.createElement("div");
+  el.className = cls;
+  el.textContent = text;
+  labels.appendChild(el);
+  return el;
+}
+function pop(pos, text, cls = "", dy = 0) {
+  const el = label(text, `pop ${cls}`);
+  const [x, y] = toScreen(pos);
+  const half = el.offsetWidth / 2 + 8; // keep wide speech bubbles on screen
+  el.style.left = `${clamp(x, half, Math.max(half, W - half))}px`;
+  el.style.top = `${y + dy}px`;
+  setTimeout(() => el.remove(), 2100);
+}
+
+// ---------- Residents in their beds ----------
+const residents = RESIDENTS.map((def) => {
+  const g = new THREE.Group();
+  g.position.set(def.side * 5.03, 0, def.z);
+  g.rotation.y = def.side > 0 ? Math.PI : 0; // head of the bed against the wall
+  scene.add(g);
+  const L = 2.5, BW = 1.35;
+  const base = add(box(L, 0.42, BW), 0xaebdc7, L / 2, 0.21, 0, g);
+  add(box(L - 0.08, 0.2, BW - 0.08), 0xf6f8f7, L / 2, 0.52, 0, g);
+  add(box(0.1, 1.0, BW), 0x6f97ad, 0.05, 0.5, 0, g);
+  add(box(0.08, 0.7, BW), 0x6f97ad, L - 0.04, 0.35, 0, g);
+  add(ball(0.4), 0xffffff, 0.42, 0.68, 0, g).scale.set(0.7, 0.3, 1.2);
+  add(ball(0.18), def.skin, 0.48, 0.8, 0, g);
+  add(ball(0.19), def.hair, 0.41, 0.84, 0, g).scale.set(0.85, 0.9, 1.05);
+  add(box(1.8, 0.26, BW - 0.1), def.blanket, 1.52, 0.72, 0, g);
+  add(box(0.16, 0.28, BW - 0.08), 0xffffff, 0.66, 0.73, 0, g);
+  const stand = add(box(0.5, 0.62, 0.5), 0xc49a6c, 0.32, 0.31, BW / 2 + 0.42, g);
+  add(tube(0.07, 0.06, 0.18, 12), 0xffffff, 0.25, 0.71, BW / 2 + 0.42, g);
+  const lampMat = new THREE.MeshLambertMaterial({ color: 0xd8d2cc, emissive: 0x000000 });
+  add(ball(0.12, 14, 10), lampMat, 0.05, 1.08, BW / 2 - 0.16, g, false);
+  solid(stand);
+  plate(def);
+
+  const el = document.createElement("div");
+  el.className = "bubble";
+  el.hidden = true;
+  el.innerHTML = '<span class="ico"></span><span class="who"></span><span class="bar"><i></i></span>';
+  el.querySelector(".who").textContent = def.name;
+  labels.appendChild(el);
+
+  return {
+    ...def,
+    box: solid(base),
+    anchor: g.localToWorld(new THREE.Vector3(1.25, 1.45, 0)),
+    lampMat, lampOn: false,
+    el, ico: el.querySelector(".ico"), fill: el.querySelector(".bar i"), mode: "off",
+    req: null, cooldown: 0, upset: 0, lastType: null, helping: false,
+  };
+});
+
+// ---------- Supply carts, hand sanitizer, nurses' station ----------
+const BUILD_CART = {
+  water(g) {
+    const body = add(box(1.3, 0.9, 0.85), 0xdde7eb, 0, 0.45, 0, g);
+    add(box(1.36, 0.05, 0.9), 0x8fa9b6, 0, 0.92, 0, g);
+    add(tube(0.21, 0.21, 0.52, 20), 0x6cc0ea, -0.3, 1.2, 0, g);
+    add(tube(0.08, 0.08, 0.08, 12), 0x2f86b8, -0.3, 1.5, 0, g);
+    for (let i = 0; i < 3; i++) add(tube(0.07, 0.055, 0.16, 12), 0xffffff, 0.12 + i * 0.18, 1.03, 0.12, g);
+    return body;
+  },
+  meal(g) {
+    const body = add(box(1.3, 1.1, 0.85), 0xc2cbd2, 0, 0.62, 0, g);
+    for (let i = 0; i < 4; i++) add(box(1.1, 0.035, 0.02), 0x7b8892, 0, 0.32 + i * 0.22, 0.435, g, false);
+    add(box(1.0, 0.04, 0.62), 0xe6d7bd, 0, 1.19, 0, g);
+    add(dome(0.2), 0xdfe5ea, -0.18, 1.21, 0, g);
+    add(ball(0.065, 10, 8), 0xd9573b, 0.28, 1.27, 0.06, g);
+    for (const wx of [-0.5, 0.5]) for (const wz of [-0.3, 0.3]) add(ball(0.06, 8, 6), 0x34424a, wx, 0.06, wz, g, false);
+    return body;
+  },
+  linens(g) {
+    const frame = 0x8796a0;
+    const body = add(box(1.3, 0.1, 0.85), frame, 0, 0.2, 0, g);
+    add(box(1.3, 0.05, 0.85), frame, 0, 0.72, 0, g);
+    add(box(1.3, 0.05, 0.85), frame, 0, 1.22, 0, g);
+    for (const px of [-0.62, 0.62]) for (const pz of [-0.39, 0.39]) add(box(0.05, 1.22, 0.05), frame, px, 0.61, pz, g, false);
+    const folds = [0xffffff, 0xcfe3f2, 0xffffff, 0xf2e7cf];
+    [0.25, 0.77].forEach((y, row) => {
+      [-0.3, 0.3].forEach((x, col) => {
+        for (let k = 0; k < 2; k++) add(box(0.52, 0.15, 0.68), folds[(row * 2 + col + k) % 4], x, y + 0.08 + k * 0.16, 0, g);
+      });
+    });
+    add(box(1.3, 0.9, 0.04), 0x2f7fb0, 0, 0.75, -0.43, g);
+    return body;
+  },
+};
+const stations = [
+  { item: "water", x: -3.1 },
+  { item: "meal", x: 0 },
+  { item: "linens", x: 3.1 },
+].map((s) => {
+  const g = new THREE.Group();
+  g.position.set(s.x, 0, -8.55);
+  scene.add(g);
+  const body = BUILD_CART[s.item](g);
+  return {
+    ...s,
+    box: solid(body),
+    anchor: new THREE.Vector3(s.x, 1.75, -8.55),
+    tag: label(`${ITEMS[s.item].icon} ${ITEMS[s.item].cart}`, "tag"),
+  };
+});
+
+const san = new THREE.Group();
+san.position.copy(SANITIZER);
+scene.add(san);
+add(tube(0.22, 0.25, 0.06, 20), 0x9aa8b0, 0, 0.03, 0, san);
+add(tube(0.045, 0.045, 1.0, 10), 0xb7c2c9, 0, 0.53, 0, san);
+add(box(0.28, 0.36, 0.2), 0xffffff, 0, 1.15, 0, san);
+add(box(0.1, 0.06, 0.12), 0x1b7c8a, 0, 0.99, 0.08, san);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0x2bb3c0, transparent: true, opacity: 0.3, depthWrite: false });
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 48), ringMat);
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = 0.015;
+san.add(ring);
+colliders.push({ minX: SANITIZER.x - 0.16, maxX: SANITIZER.x + 0.16, minZ: SANITIZER.z - 0.16, maxZ: SANITIZER.z + 0.16 });
+const SAN_ANCHOR = new THREE.Vector3(SANITIZER.x, 1.55, SANITIZER.z);
+const sanTag = label("🧴 Sanitizer", "tag");
+
+const desk = add(box(4, 0.95, 0.75), 0x5f8f9c, 0, 0.475, 7.95);
+add(box(4.1, 0.06, 0.85), 0xd2ae84, 0, 0.98, 7.95);
+add(box(0.62, 0.4, 0.05), 0x22313a, -0.9, 1.3, 8.05);
+add(box(0.08, 0.2, 0.08), 0x22313a, -0.9, 1.06, 8.1);
+add(box(0.3, 0.02, 0.4), 0xffffff, 0.6, 1.02, 7.9);
+add(tube(0.14, 0.11, 0.24, 12), 0xb5654a, 1.6, 1.13, 8.0);
+add(ball(0.24, 12, 10), 0x4f9a5c, 1.6, 1.4, 8.0);
+solid(desk);
+
+// ---------- The CNA ----------
+const SKIN = 0xb98262, SCRUBS = 0x2b8e9e, SCRUBS_DARK = 0x216f7c, HAIR = 0x3b2a20;
+const player = new THREE.Group();
+scene.add(player);
+add(new THREE.CapsuleGeometry(0.23, 0.3, 6, 14), SCRUBS, 0, 0.9, 0, player);
+const legs = [-0.11, 0.11].map((x) => {
+  const hip = new THREE.Group();
+  hip.position.set(x, 0.62, 0);
+  player.add(hip);
+  add(new THREE.CapsuleGeometry(0.085, 0.34, 4, 10), SCRUBS_DARK, 0, -0.27, 0, hip);
+  add(box(0.15, 0.08, 0.24), 0xf4f4f4, 0, -0.56, 0.04, hip);
+  return hip;
+});
+const arms = [-0.3, 0.3].map((x) => {
+  const shoulder = new THREE.Group();
+  shoulder.position.set(x, 1.1, 0);
+  player.add(shoulder);
+  add(new THREE.CapsuleGeometry(0.07, 0.2, 4, 10), SCRUBS, 0, -0.15, 0, shoulder);
+  add(ball(0.072, 10, 8), SKIN, 0, -0.33, 0, shoulder);
+  return shoulder;
+});
+add(ball(0.21), SKIN, 0, 1.4, 0, player);
+add(ball(0.215), HAIR, 0, 1.46, -0.05, player).scale.set(1, 0.88, 1);
+add(ball(0.1, 10, 8), HAIR, 0, 1.52, -0.22, player);
+for (const ex of [-0.075, 0.075]) add(ball(0.026, 8, 6), 0x1a1a1a, ex, 1.4, 0.195, player, false);
+add(box(0.11, 0.075, 0.02), 0xffffff, 0.1, 1.0, 0.232, player, false);
+
+const carry = {};
+for (const item of Object.keys(ITEMS)) {
+  carry[item] = new THREE.Group();
+  carry[item].position.set(0, 0.92, 0.36);
+  carry[item].visible = false;
+  player.add(carry[item]);
+}
+add(tube(0.075, 0.06, 0.18, 14), 0xffffff, 0, 0.09, 0, carry.water);
+add(tube(0.068, 0.068, 0.02, 14), 0x6cc0ea, 0, 0.17, 0, carry.water);
+add(box(0.42, 0.04, 0.3), 0xe6d7bd, 0, 0.02, 0, carry.meal);
+add(dome(0.13), 0xdfe5ea, 0, 0.04, 0, carry.meal);
+add(box(0.4, 0.12, 0.3), 0xffffff, 0, 0.06, 0, carry.linens);
+add(box(0.4, 0.1, 0.3), 0xcfe3f2, 0, 0.17, 0, carry.linens);
+const carryTag = label("", "carry");
+carryTag.hidden = true;
+
+// ---------- Camera: fit the whole ward on screen, portrait or landscape ----------
+const target = new THREE.Vector3(0, 0, -0.1);
+const FIT = [];
+for (const x of [-5.3, 5.3]) for (const z of [-9.4, 9.2]) for (const y of [-0.4, 1.7]) FIT.push(new THREE.Vector3(x, y, z));
+for (const x of [-4, 4]) FIT.push(new THREE.Vector3(x, 2.3, -8.6)); // headroom for the cart labels
+let yaw = 0;
+
+function layout() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  renderer.setSize(W, H, false);
+  camera.aspect = W / H;
+  const landscape = W / H > 1.1;
+  yaw = landscape ? Math.PI / 2 : 0; // in landscape, look down the long axis of the ward
+  rightWall.visible = !landscape; // it would sit between the camera and the beds
+  for (const p of plates) p.holder.rotation.y = yaw;
+  const pitch = THREE.MathUtils.degToRad(landscape ? 55 : 60);
+  const dir = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+  const hudBottom = $("hud").getBoundingClientRect().bottom;
+  $("toast").style.top = `${hudBottom + 6}px`;
+  const top = hudBottom + (landscape ? 8 : 48);
+  const bottom = 14;
+  const offsetY = -(top - bottom) / 2;
+  camera.setViewOffset(W, H, 0, offsetY, W, H);
+  // Screen area covered by the ward; request bubbles reach about 70px above their anchors.
+  const extent = () => {
+    camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();
+    const e = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, behind: false };
+    const visit = (p, raise) => {
+      v.copy(p).project(camera);
+      if (Math.abs(v.z) > 1) e.behind = true;
+      const x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
+      e.minX = Math.min(e.minX, x);
+      e.maxX = Math.max(e.maxX, x);
+      e.minY = Math.min(e.minY, y - raise);
+      e.maxY = Math.max(e.maxY, y);
+    };
+    FIT.forEach((p) => visit(p, 0));
+    residents.forEach((r) => visit(r.anchor, 70));
+    return e;
+  };
+  const fits = () => {
+    const e = extent();
+    return !e.behind && e.minX >= 12 && e.maxX <= W - 12 && e.minY >= top && e.maxY <= H - bottom;
+  };
+  let lo = 4, hi = 150;
+  for (let i = 0; i < 24; i++) {
+    const d = (lo + hi) / 2;
+    camera.position.copy(target).addScaledVector(dir, d);
+    camera.lookAt(target);
+    if (fits()) hi = d; else lo = d;
+  }
+  camera.position.copy(target).addScaledVector(dir, hi);
+  camera.lookAt(target);
+  // A tall screen leaves spare height: lift the ward so most of it ends up below, where thumbs rest.
+  const lift = Math.max(0, extent().minY - top) * 0.6;
+  camera.setViewOffset(W, H, 0, offsetY + lift, W, H);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+}
+
+// ---------- Sound ----------
+let actx = null;
+let muted = false;
+try { muted = localStorage.getItem(MUTE_KEY) === "1"; } catch {}
+function initAudio() {
+  try {
+    actx ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+  } catch {
+    actx = null;
+  }
+}
+function tone(freq, dur, { type = "sine", vol = 0.12, at = 0, to = 0 } = {}) {
+  if (!actx || muted) return;
+  const t = actx.currentTime + at;
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t);
+  if (to) osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(gain).connect(actx.destination);
+  osc.start(t);
+  osc.stop(t + dur + 0.05);
+}
+const sfx = {
+  call: () => { tone(880, 0.16, { vol: 0.07 }); tone(660, 0.24, { vol: 0.07, at: 0.15 }); },
+  pickup: () => { tone(520, 0.08, { type: "triangle" }); tone(780, 0.1, { type: "triangle", at: 0.06 }); },
+  success: () => [523, 659, 784].forEach((f, i) => tone(f, 0.16, { type: "triangle", at: i * 0.08 })),
+  miss: () => tone(320, 0.35, { type: "sawtooth", vol: 0.05, to: 160 }),
+  clean: () => tone(1200, 0.18, { vol: 0.05, to: 2200 }),
+  end: () => [784, 659, 523, 659, 784, 1047].forEach((f, i) => tone(f, 0.18, { type: "triangle", vol: 0.09, at: i * 0.11 })),
+};
+const buzz = (pattern) => { try { navigator.vibrate?.(pattern); } catch {} };
+
+// ---------- Input: floating joystick + keyboard ----------
+const keys = new Set();
+const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
+const STICK_R = 54;
+const stickEl = $("stick"), knobEl = $("knob");
+
+function drawStick() {
+  stickEl.hidden = stick.id === null;
+  stickEl.style.transform = `translate(${stick.ox}px, ${stick.oy}px)`;
+  knobEl.style.transform = `translate(${stick.x * STICK_R}px, ${stick.y * STICK_R}px)`;
+}
+canvas.addEventListener("pointerdown", (e) => {
+  initAudio();
+  if (state.mode !== "playing" || stick.id !== null) return;
+  stick.id = e.pointerId;
+  stick.ox = e.clientX;
+  stick.oy = e.clientY;
+  stick.x = stick.y = 0;
+  canvas.setPointerCapture?.(e.pointerId);
+  drawStick();
+  e.preventDefault();
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== stick.id) return;
+  let dx = e.clientX - stick.ox, dy = e.clientY - stick.oy;
+  const d = Math.hypot(dx, dy);
+  if (d > STICK_R) { // the base trails the finger so direction changes stay quick
+    stick.ox += dx * (1 - STICK_R / d);
+    stick.oy += dy * (1 - STICK_R / d);
+    dx *= STICK_R / d;
+    dy *= STICK_R / d;
+  }
+  stick.x = dx / STICK_R;
+  stick.y = dy / STICK_R;
+  drawStick();
+});
+function releaseStick(e) {
+  if (e && e.pointerId !== stick.id) return;
+  stick.id = null;
+  stick.x = stick.y = 0;
+  drawStick();
+}
+canvas.addEventListener("pointerup", releaseStick);
+canvas.addEventListener("pointercancel", releaseStick);
+canvas.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+document.addEventListener("gesturestart", (e) => e.preventDefault());
+
+addEventListener("keydown", (e) => {
+  if (e.code.startsWith("Arrow")) e.preventDefault();
+  keys.add(e.code);
+});
+addEventListener("keyup", (e) => keys.delete(e.code));
+addEventListener("blur", () => { keys.clear(); releaseStick(); });
+
+function readInput() {
+  let x, y;
+  if (stick.id !== null) {
+    x = stick.x;
+    y = stick.y;
+  } else {
+    x = (keys.has("ArrowRight") || keys.has("KeyD") ? 1 : 0) - (keys.has("ArrowLeft") || keys.has("KeyA") ? 1 : 0);
+    y = (keys.has("ArrowDown") || keys.has("KeyS") ? 1 : 0) - (keys.has("ArrowUp") || keys.has("KeyW") ? 1 : 0);
+  }
+  const m = Math.hypot(x, y);
+  if (m < 0.15) return null;
+  const strength = Math.min(1, (m - 0.15) / 0.55);
+  return { x: (x / m) * strength, y: (y / m) * strength };
+}
+
+function collide(p) {
+  for (let pass = 0; pass < 2; pass++) {
+    for (const b of colliders) {
+      const cx = clamp(p.x, b.minX, b.maxX), cz = clamp(p.z, b.minZ, b.maxZ);
+      const dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
+      if (d2 >= R * R) continue;
+      if (d2 > 1e-9) {
+        const d = Math.sqrt(d2);
+        p.x = cx + (dx / d) * R;
+        p.z = cz + (dz / d) * R;
+      } else { // center ended up inside: leave through the nearest side
+        const exits = [[b.minX - R - p.x, 0], [b.maxX + R - p.x, 0], [0, b.minZ - R - p.z], [0, b.maxZ + R - p.z]];
+        exits.sort((a, c) => Math.abs(a[0] + a[1]) - Math.abs(c[0] + c[1]));
+        p.x += exits[0][0];
+        p.z += exits[0][1];
+      }
+    }
+    p.x = clamp(p.x, BOUNDS.minX + R, BOUNDS.maxX - R);
+    p.z = clamp(p.z, BOUNDS.minZ + R, BOUNDS.maxZ - R);
+  }
+}
+
+// ---------- Game state ----------
+const state = {
+  mode: "menu", t: 0, score: 0, helped: 0, missed: 0, cleanVisits: 0,
+  holding: null, clean: true, spawnIn: 1, at: null, moved: false, facing: Math.PI,
+};
+let bestScore = 0;
+try { bestScore = Number(localStorage.getItem(BEST_KEY)) || 0; } catch {}
+
+const toastEl = $("toast"), hintEl = $("hint");
+let toastTimer = 0;
+function toast(text, ms = 2200) {
+  toastEl.textContent = text;
+  toastEl.hidden = false;
+  toastEl.classList.remove("show");
+  void toastEl.offsetWidth; // restart the entrance animation
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastEl.hidden = true; }, ms);
+}
+
+function spawn() {
+  const p = state.t / SHIFT_SECONDS;
+  const active = residents.filter((r) => r.req).length;
+  const free = residents.filter((r) => !r.req && r.cooldown <= 0);
+  if (free.length && active < 2 + Math.floor(p * 3.5)) {
+    const r = pick(free);
+    const type = pick(Object.keys(TASKS).filter((t) => t !== r.lastType));
+    const patience = lerp(26, 16, p) + (TASKS[type].item ? 3 : 0);
+    r.req = { type, left: patience, max: patience, progress: 0 };
+    r.lastType = type;
+    r.upset = 0;
+    toast(`🔔 Room ${r.room}: ${r.name} ${TASKS[type].ask}`);
+    sfx.call();
+  }
+  state.spawnIn = lerp(5.5, 2.6, p) * rand(0.75, 1.25);
+}
+
+function complete(r, task) {
+  const speedBonus = Math.round((10 * r.req.left) / r.req.max);
+  const handBonus = state.clean ? 5 : 0;
+  const points = 10 + speedBonus + handBonus;
+  state.score += points;
+  state.helped++;
+  if (handBonus) state.cleanVisits++;
+  if (task.item) state.holding = null;
+  state.clean = false;
+  r.req = null;
+  r.cooldown = rand(3, 6);
+  pop(r.anchor, `+${points}`);
+  if (handBonus) setTimeout(() => pop(r.anchor, "🧴 clean hands +5", "small", 24), 220);
+  pop(r.anchor, pick(THANKS), "say", -58);
+  sfx.success();
+  buzz(30);
+}
+
+function miss(r) {
+  r.req = null;
+  r.cooldown = rand(2, 4);
+  r.upset = 2.5;
+  state.missed++;
+  state.score = Math.max(0, state.score - 5);
+  pop(r.anchor, "−5", "bad");
+  pop(r.anchor, pick(UPSET), "say", -58);
+  sfx.miss();
+  buzz([40, 60, 40]);
+}
+
+function update(dt) {
+  state.t += dt;
+  const p = player.position;
+  const input = readInput();
+  let moving = 0;
+  if (input) {
+    const fx = -Math.sin(yaw), fz = -Math.cos(yaw); // screen up, on the floor
+    const rx = Math.cos(yaw), rz = -Math.sin(yaw); // screen right, on the floor
+    const vx = (rx * input.x - fx * input.y) * SPEED;
+    const vz = (rz * input.x - fz * input.y) * SPEED;
+    p.x += vx * dt;
+    p.z += vz * dt;
+    collide(p);
+    moving = Math.hypot(input.x, input.y);
+    state.facing = Math.atan2(vx, vz);
+    if (!state.moved) {
+      state.moved = true;
+      hintEl.hidden = true;
+    }
+  }
+
+  for (const s of stations) {
+    if (state.holding !== s.item && distToBox(p, s.box) < R + 0.3) {
+      state.holding = s.item;
+      pop(s.anchor, `Got ${ITEMS[s.item].name.toLowerCase()}`, "small");
+      sfx.pickup();
+      buzz(15);
+    }
+  }
+  if (!state.clean && Math.hypot(p.x - SANITIZER.x, p.z - SANITIZER.z) < 0.85) {
+    state.clean = true;
+    pop(SAN_ANCHOR, "Clean hands ✨", "small");
+    sfx.clean();
+    buzz(10);
+  }
+
+  let at = null;
+  for (const r of residents) {
+    if (r.cooldown > 0) r.cooldown -= dt;
+    if (r.upset > 0) r.upset -= dt;
+    const near = distToBox(p, r.box) < R + 0.45;
+    if (near) at = r;
+    r.helping = false;
+    if (!r.req) continue;
+    const task = TASKS[r.req.type];
+    if (near && (!task.item || state.holding === task.item)) {
+      r.helping = true;
+      r.req.progress += dt;
+      if (r.req.progress >= task.time) complete(r, task);
+    } else if ((r.req.left -= dt) <= 0) {
+      miss(r);
+    }
+  }
+  if (at !== state.at) { // just arrived at a bedside
+    state.at = at;
+    const need = at?.req && TASKS[at.req.type].item;
+    if (need && state.holding !== need) {
+      toast(`${at.name} needs ${ITEMS[need].icon} ${ITEMS[need].name.toLowerCase()}. Grab it from the ${ITEMS[need].cart} cart.`, 2600);
+    }
+  }
+
+  if ((state.spawnIn -= dt) <= 0) spawn();
+  if (state.t >= SHIFT_SECONDS) endShift();
+  return moving;
+}
+
+// ---------- Screens ----------
+const startBtn = $("start");
+function showBest(el) {
+  el.hidden = bestScore <= 0;
+  el.textContent = `Personal best: ${bestScore}`;
+}
+
+function startShift() {
+  if (state.mode === "playing") return;
+  initAudio();
+  Object.assign(state, {
+    mode: "playing", t: 0, score: 0, helped: 0, missed: 0, cleanVisits: 0,
+    holding: null, clean: true, spawnIn: 1, at: null, moved: false, facing: Math.PI,
+  });
+  for (const r of residents) Object.assign(r, { req: null, cooldown: 0, upset: 0, lastType: null, helping: false });
+  player.position.set(0, 0, 6.5);
+  player.rotation.y = Math.PI;
+  $("menu").hidden = true;
+  $("report").hidden = true;
+  $("game").classList.add("playing");
+  hintEl.hidden = false;
+}
+
+function endShift() {
+  state.mode = "over";
+  state.holding = null;
+  for (const r of residents) {
+    r.req = null;
+    r.helping = false;
+  }
+  releaseStick();
+  $("game").classList.remove("playing");
+  hintEl.hidden = true;
+  toastEl.hidden = true;
+  const total = state.helped + state.missed;
+  const ratio = total ? state.helped / total : 0;
+  const stars = state.helped === 0 ? 0 : ratio >= 0.9 ? 3 : ratio >= 0.75 ? 2 : ratio >= 0.5 ? 1 : 0;
+  $("r-title").textContent = ["Rough shift. Coffee first next time!", "You made it through!", "Solid shift!", "Superstar CNA!"][stars];
+  const starsEl = $("r-stars");
+  starsEl.textContent = "★".repeat(stars);
+  const off = document.createElement("span");
+  off.className = "off";
+  off.textContent = "★".repeat(3 - stars);
+  starsEl.appendChild(off);
+  starsEl.setAttribute("aria-label", `${stars} of 3 stars`);
+  $("r-score").textContent = String(state.score);
+  $("r-helped").textContent = String(state.helped);
+  $("r-missed").textContent = String(state.missed);
+  $("r-hands").textContent = state.helped ? `Clean hands on ${state.cleanVisits} of ${state.helped} visits.` : "";
+  $("r-tip").textContent = pick(TIPS);
+  const newBest = state.score > bestScore;
+  bestScore = Math.max(bestScore, state.score);
+  try { localStorage.setItem(BEST_KEY, String(bestScore)); } catch {}
+  const bestEl = $("r-best");
+  showBest(bestEl);
+  if (newBest) bestEl.textContent = "New personal best!";
+  $("report").hidden = false;
+  sfx.end();
+}
+
+startBtn.addEventListener("click", startShift);
+$("again").addEventListener("click", startShift);
+const muteBtn = $("mute");
+function drawMute() {
+  muteBtn.textContent = muted ? "🔇" : "🔊";
+  muteBtn.setAttribute("aria-label", muted ? "Turn sound on" : "Mute sound");
+}
+muteBtn.addEventListener("click", () => {
+  muted = !muted;
+  try { localStorage.setItem(MUTE_KEY, muted ? "1" : "0"); } catch {}
+  drawMute();
+  initAudio();
+});
+
+// ---------- Per-frame visuals ----------
+const hud = { clockIco: $("clock-ico"), clockTime: $("clock-time"), clock: $("clock"), score: $("score"), hands: $("hands"), handsText: $("hands-text") };
+function setText(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+function drawHud() {
+  const mins = 7 * 60 + Math.floor((Math.min(state.t, SHIFT_SECONDS) / SHIFT_SECONDS) * 48) * 10;
+  const h24 = Math.floor(mins / 60), m = mins % 60;
+  setText(hud.clockTime, `${((h24 + 11) % 12) + 1}:${String(m).padStart(2, "0")} ${h24 < 12 ? "AM" : "PM"}`);
+  setText(hud.clockIco, CLOCKS[h24 % 12]);
+  hud.clock.classList.toggle("late", state.mode === "playing" && SHIFT_SECONDS - state.t < 15);
+  setText(hud.score, String(state.score));
+  hud.hands.dataset.clean = state.clean ? "yes" : "no";
+  setText(hud.handsText, state.clean ? "Clean" : "Sanitize");
+}
+
+function drawBubble(r) {
+  const mode = r.req ? "req" : r.upset > 0 ? "upset" : "off";
+  if (mode !== r.mode) {
+    r.mode = mode;
+    r.el.hidden = mode === "off";
+    r.el.classList.toggle("upset", mode === "upset");
+  }
+  if (mode === "off") return;
+  if (mode === "upset") {
+    setText(r.ico, "😠");
+  } else {
+    const task = TASKS[r.req.type];
+    setText(r.ico, task.icon);
+    const f = r.helping ? r.req.progress / task.time : r.req.left / r.req.max;
+    r.fill.style.transform = `scaleX(${clamp(f, 0, 1).toFixed(3)})`;
+    const level = r.helping ? "help" : f > 0.5 ? "ok" : f > 0.25 ? "warn" : "late";
+    if (r.el.dataset.level !== level) r.el.dataset.level = level;
+  }
+  place(r.el, r.anchor);
+}
+
+const head = new THREE.Vector3();
+function drawLabels() {
+  for (const s of stations) place(s.tag, s.anchor);
+  place(sanTag, SAN_ANCHOR);
+  sanTag.classList.toggle("nudge", state.mode === "playing" && !state.clean);
+  for (const r of residents) drawBubble(r);
+  carryTag.hidden = !state.holding;
+  if (state.holding) {
+    setText(carryTag, ITEMS[state.holding].icon);
+    place(carryTag, head.copy(player.position).setY(2.05));
+  }
+}
+
+let walkPhase = 0;
+function animate(dt, time, moving) {
+  let turn = state.facing - player.rotation.y;
+  turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+  player.rotation.y += turn * Math.min(1, dt * 14);
+  walkPhase += dt * 11 * moving;
+  const swing = Math.sin(walkPhase) * 0.7 * moving;
+  const ease = Math.min(1, dt * 18);
+  const carrying = Boolean(state.holding);
+  legs[0].rotation.x += (swing - legs[0].rotation.x) * ease;
+  legs[1].rotation.x += (-swing - legs[1].rotation.x) * ease;
+  arms[0].rotation.x += ((carrying ? -1.25 : -swing * 0.8) - arms[0].rotation.x) * ease;
+  arms[1].rotation.x += ((carrying ? -1.25 : swing * 0.8) - arms[1].rotation.x) * ease;
+  player.position.y = Math.abs(Math.sin(walkPhase)) * 0.05 * moving;
+  for (const item in carry) carry[item].visible = state.holding === item;
+
+  for (const r of residents) { // call lights blink, faster when a resident has waited too long
+    const on = Boolean(r.req);
+    if (on !== r.lampOn) {
+      r.lampOn = on;
+      r.lampMat.color.setHex(on ? 0xff6b5b : 0xd8d2cc);
+      r.lampMat.emissive.setRGB(0, 0, 0);
+    }
+    if (on) {
+      const k = 0.5 + 0.5 * Math.sin(time * (r.req.left / r.req.max < 0.25 ? 18 : 8));
+      r.lampMat.emissive.setRGB(0.9 * k, 0.08 * k, 0.05 * k);
+    }
+  }
+  ringMat.opacity = state.mode === "playing" && !state.clean ? 0.45 + 0.3 * Math.sin(time * 6) : 0.3;
+}
+
+const clock = new THREE.Clock();
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const moving = state.mode === "playing" ? update(dt) : 0;
+  animate(dt, clock.elapsedTime, moving);
+  renderer.render(scene, camera);
+  drawLabels();
+  drawHud();
+}
+
+hintEl.textContent = matchMedia("(pointer: coarse)").matches ? "👆 Drag anywhere to walk" : "Drag, or use WASD / arrow keys to walk";
+player.position.set(0, 0, 6.5);
+player.rotation.y = Math.PI;
+drawMute();
+showBest($("menu-best"));
+addEventListener("resize", layout);
+document.fonts?.ready.then(() => {
+  plates.forEach(drawPlate);
+  layout();
+});
+layout();
+frame();
+startBtn.disabled = false;
+startBtn.textContent = "Clock in";
+</script>
+</body>
+</html>
